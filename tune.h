@@ -8,7 +8,7 @@ const byte Seq2[] PROGMEM = { SEQ_LOOP, 1, 5, 8, SEQ_END };
 const byte Seq3[] PROGMEM = { 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, SEQ_END };
 const byte Seq4[] PROGMEM = { 15, 14, 13, 10, 7, 4, 2, 1, SEQ_END };
 
-const byte Seqs[] = { Seq1, Seq2, Seq3 };
+const byte* Seqs[] = { Seq1, Seq2, Seq3 };
 
 const byte SongData0[] PROGMEM = {
     NOTE_LEN, 15,
@@ -19,8 +19,8 @@ const byte SongData0[] PROGMEM = {
 
     TRACK_LOOP,
 
-    LOOP_START, 2, NOTE_C, NOTE_E, NOTE_G, NOTE_B, DEC_VOLUME, LOOP_END,
     LOOP_START, 2, NOTE_C, NOTE_DS, NOTE_G, NOTE_AS, DEC_VOLUME, LOOP_END,
+    LOOP_START, 2, NOTE_D, NOTE_G, NOTE_A, NOTE_AS, DEC_VOLUME, LOOP_END,
 
     END
 };
@@ -29,14 +29,14 @@ const byte SongData1[] PROGMEM = {
     NOTE_LEN, 15,
     QUANT_LEN, 12,
     VOLUME_ENV, 1,
-    VOLUME, 7,
+    VOLUME, 10,
     REST|WITH_LEN|WITH_Q, 12, 12,
     INC_OCTAVE,
 
     TRACK_LOOP,
 
-    LOOP_START, 2, NOTE_C, NOTE_E, NOTE_G, NOTE_B, DEC_VOLUME, LOOP_END,
-    LOOP_START, 2, NOTE_C, NOTE_DS, NOTE_G, NOTE_AS, DEC_VOLUME, LOOP_END,
+    LOOP_START, 2, NOTE_AS, NOTE_AS, NOTE_A, NOTE_A, DEC_VOLUME, LOOP_END,
+    LOOP_START, 2, NOTE_AS, NOTE_A, NOTE_G, NOTE_D, DEC_VOLUME, LOOP_END,
 
     END
 };
@@ -49,25 +49,21 @@ const byte SongData2[] PROGMEM = {
     LOOP_START, 8,
 
     LOOP_START, 4, NOTE_C, LOOP_END,
-    INC_OCTAVE, NOTE_C, DEC_OCTAVE, NOTE_C, NOTE_B, DEC_OCTAVE, NOTE_B, INC_OCTAVE,
+    INC_OCTAVE, NOTE_C, DEC_OCTAVE, NOTE_C, NOTE_G, DEC_OCTAVE, NOTE_G, INC_OCTAVE,
 
     LOOP_END,
 
     END
 };
 const byte SongData3[] PROGMEM = {
-    //REST|WITH_LEN|WITH_Q, 64, 64,
-    VOLUME_ENV, 3,
-    //NOTE_ENV, 2,
-    //NOTE_LEN, 32, QUANT_LEN, 32,
-
-    NOTE_LEN, 15, QUANT_LEN, 15,
-
+    VOLUME_ENV, 2,
     OCTAVE, 0,
-    LOOP_START, 8,
-    NOTE_C, NOTE_CS, NOTE_D, NOTE_DS, NOTE_E, NOTE_F, NOTE_FS, NOTE_G, NOTE_GS, NOTE_A, NOTE_AS, NOTE_B, INC_OCTAVE,
-    LOOP_END,
-    END,
+
+    TRACK_LOOP,
+
+    LOOP_START, 2, NOTE_C, NOTE_DS, NOTE_G, NOTE_AS, DEC_VOLUME, LOOP_END,
+    LOOP_START, 2, NOTE_D, NOTE_G, NOTE_A, NOTE_AS, DEC_VOLUME, LOOP_END,
+    END
 };
 
 const byte* SongData[] = { SongData0, SongData1, SongData2, SongData3 };

@@ -25,9 +25,12 @@
 #include <avr/sleep.h>
 #include "player.h"
 #include "tune.h"
+#include <wiring.c>
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
 #define NUM_VOICES      4
 #define DEFAULT_OCTAVE  4
@@ -35,6 +38,7 @@
 #define DEFAULT_VOL     15
 #define DEFAULT_PW      0x80
 
+const int PIN_LED = 13;
 
 // Note buffer
 volatile uint16_t lfsr = 1;
@@ -52,21 +56,28 @@ bool playing = false, wantsToStop = false;
 volatile bool justAwoke = false;
 
 
-// External interrupt 0
+/*// External interrupt 0
 ISR(INT0_vect) {
     GIMSK = 0;            // Disable interrupt because this routine may fire multiple times
                           // while pin is held low (button pressed)
     justAwoke = true;
-}
+}*/
+
+volatile unsigned long int timer0_compa_tick = 0;
 
 // Watchdog interrupt counts ticks (every 16ms)
 ISR(WDT_vect) {
-    WDTCR |= 1<<WDIE;
+    #if defined(WDTCSR)
+        WDTCSR |= 1<<WDIE;
+    #elif defined(WDTCR)
+        WDTCR |= 1<<WDIE;
+    #endif
     ticks++;
     nextTick = true;
 }
 
 ISR(TIMER0_COMPA_vect) {
+    //timer0_compa_tick++;
     unsigned char temp;
     signed char stemp, mask, out = 0;
     Voice* v;
@@ -106,38 +117,136 @@ ISR(TIMER0_COMPA_vect) {
     }
     out += (lfsrOut ? v->amp : 0) >> 2;
 
+    /*
+    // for ATmega16u4-32u4
+    #if defined(OCR4A)
+        OCR4A = out;
+    // for ATtiny25-45-85
+    #elif defined(OCR1B)
+        OCR1B = out;
+    #endif
+    */
     OCR1B = out;
 }
 
 // Setup **********************************************
 
 void setup() {
-    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
 
-    // Set all pins as input and enable internal pull-up resistor
-    for (int i = 0; i <= 3; i++) {
-        pinMode(i, INPUT_PULLUP);
-    }
+    // // Set all pins as input and enable internal pull-up resistor
+    // for (int i = 0; i <= 3; i++) {
+        // pinMode(i, INPUT_PULLUP);
+    // }
 
-    // Enable 64 MHz PLL and use as source for Timer1
-    PLLCSR = 1<<PCKE | 1<<PLLE;
+    // Enable 64 MHz PLL and use as source for Timer1/Timer4
 
-    // Set up Timer/Counter1 for PWM output
-    TCCR1 = 1<<CS10;               // 1:1 prescale
-    GTCCR = 1<<PWM1B | 2<<COM1B0;  // PWM B, clear on match
+    // for ATtiny25-45-85
+    #if defined(PLLCSR) && defined(PCKE)
+        PLLCSR = 1 << PLLE; //Enable PLL
+        _delay_us(100); // Wait for a sync;
+        while (!(PLLCSR & (1 << PLOCK))) {
+        };
+        // PLL Synced
+        PLLCSR |= (1 << PCKE); // Enable Asynchronous PCK mode.
+    #endif
+    /*
+    // for ATmega16u4-32u4
+    #if defined(PLLCSR) && defined(PLLFRQ)
+        sbi(PLLCSR, PINDIV); // When using a 16MHz clock source, this bit must be set to 1 before enabling PLL
+        sbi(PLLCSR, PLLE); //Enable PLL
+        _delay_us(100); // Wait for a sync;
+        while (!(PLLCSR & (1 << PLOCK))) {
+        };
+        // PLL Synced
+        sbi(PLLFRQ, PLLTM1); // PLL Postcaler Factor for High-Speed Timer: 1.5 division
+        cbi(PLLFRQ, PLLTM0);
+        sbi(PLLFRQ, PDIV3); // PLL Output Frequency 96MHz
+        cbi(PLLFRQ, PDIV3);
+        sbi(PLLFRQ, PDIV3);
+        cbi(PLLFRQ, PDIV3);
+    #endif
+    */
+    // for ATtiny25-45-85
+    #if defined(TCCR1)
+        // TCCR1 => CTC1 PWM1A COM1A1 COM1A0 CS13 CS12 CS11 CS10
+        // GTCCR => TSM PWM1B COM1B1 COM1B0 FOC1B FOC1A PSR1 PSR0
+        
+        // Set up Timer/Counter1 for PWM output
+        TCCR1 = 1<<CS10;               // 1:1 prescale
+        GTCCR = 1<<PWM1B | 2<<COM1B0;  // PWM B, clear on match
 
-    OCR1B = 128;
-    pinMode(4, OUTPUT);            // Enable PWM output pin
-
+        OCR1B = 128;
+        pinMode(4, OUTPUT);            // Enable PWM output pin
+    #endif
+    
+    /*
+    // for ATmega16u4-32u4
+    #if defined(TCCR4A)
+        // TCCR4A => COM4A1 COM4A0 COM4B1 COM4B0 FOC4A FOC4B PWM4A PWM4B
+        // TCCR4B => PWM4X PSR4 DTPS41 DTPS40 CS43 CS42 CS41 CS40
+        // TCCR4C => COM4A1S COM4A0S COM4B1S COMAB0S COM4D1 COM4D0 FOC4D PWM4D
+        // TCCR4D => FPIE4 FPEN4 FPNC4 FPES4 FPAC4 FPF4 WGM41 WGM40
+        // TCCR4E => TLOCK4 ENHC4 OC4OE5 OC4OE4 OC4OE3 OC4OE2 OC4OE1 OC4OE0
+        sbi(TCCR4B, CS40); // set prescaler 1:1
+        cbi(TCCR4B, CS41);
+        cbi(TCCR4B, CS42);
+        cbi(TCCR4B, CS43);
+        sbi(TCCR4A, PWM4A); // enable PWM A
+        cbi(TCCR4D, WGM40); // Fast PWM (non PWM6)
+        cbi(TCCR4D, WGM41);
+        cbi(TCCR4A, COM4A0); // compare output mode: clear on compare match
+        sbi(TCCR4A, COM4A1);
+        
+        OCR4A = 128;
+        pinMode(5, OUTPUT);            // Enable PWM output pin
+    #endif
+    */
+    // for ATmega328
+    //#if defined(TCCR1A) && !defined(TCCR4A)
+    //#if defined(TCCR1A)
+        // TCCR1A => COM1A1 COM1A0 COM1B1 COM1B0 – – WGM11 WGM10
+        // TCCR1B => ICNC1 ICES1 – WGM13 WGM12 CS12 CS11 CS10
+        
+        // Set up Timer/Counter1 for PWM output
+        sbi(TCCR1B, CS10); // 1:1 prescale
+        cbi(TCCR1B, CS11);
+        cbi(TCCR1B, CS12);
+        sbi(TCCR1A, WGM10); // Fast PWM Mode, 8bit
+        cbi(TCCR1A, WGM11);
+        sbi(TCCR1B, WGM12);
+        cbi(TCCR1B, WGM13);
+        cbi(TCCR1A, COM1B0); // Clear OC1B on Compare Match
+        sbi(TCCR1A, COM1B1);
+        
+        OCR1B = 128;
+        pinMode(10, OUTPUT);            // Enable PWM output pin
+    //#endif
+    
     // Set up Timer/Counter0 for 20kHz interrupt to output samples.
     TCCR0A = 3<<WGM00;             // Fast PWM
     TCCR0B = 1<<WGM02 | 2<<CS00;   // 1/8 prescale
     OCR0A = 49;                    // Divide by 400
+    
+    // On Timer0, enable timer compare match, disable overflow
+    #if defined(TIMSK)
+        TIMSK = 1 << OCIE0A | 0 << TOIE0;
+    #elif defined(TIMSK0)
+        TIMSK0 = 1 << OCIE0A | 0 << TOIE0;
+    #endif
+    
+    // Enable Watchdog timer for 128Hz interrupt
+    #if defined(WDTCSR)
+        WDTCSR |= 1<<WDIE;
+    #elif defined(WDTCR)
+        WDTCR |= 1<<WDIE;
+    #endif
 
-    GIMSK = 0;                     // Disable INT0
+    //GIMSK = 0;                     // Disable INT0
+    _delay_ms(1000);
 }
 
-void goToSleep(void) {
+/*void goToSleep(void) {
     byte adcsra, mcucr1, mcucr2, wdtcr;
 
     WDTCR = 0;                                // Disable Watchdog timer
@@ -165,7 +274,7 @@ void goToSleep(void) {
     PLLCSR = 1<<PCKE | 1<<PLLE;               // Re-enable PLL (for some reason, this is needed after sleeping...)
     TIMSK = 1<<OCIE0A;                        // Enable timer compare match, disable overflow
     WDTCR = 1<<WDIE;                          // Enable Watchdog timer for 128Hz interrupt
-}
+}*/
 
 
 // Main loop
@@ -253,11 +362,11 @@ inline void playNote(Voice& voice, byte note) {
     resetSequences(voice);
 }
 
-inline const byte fetchSeqValue(const Envelope& env) {
+inline byte fetchSeqValue(const Envelope& env) {
     return pgm_read_byte(Seqs[env.id - 1] + env.i - 1);
 }
 
-const byte playSequence(Voice& voice, Envelope& env) {
+byte playSequence(Voice& voice, Envelope& env) {
     byte value = fetchSeqValue(env);
 
     // [1 2 3 4 5 | 7 6 = 4 3 2 1 0]  1 2 3 4 5 7 6 [7 6 ...] 4 3 2 1 0
@@ -309,8 +418,8 @@ inline void playSequences(Voice& voice) {
 
     // Note Envelope
     const byte value = voice.note + voice.transpose + (voice.note_env.id ? playSequence(voice, voice.note_env) : 0);
-    const char rel_note = value % 12;
-    const char rel_octave = value / 12;
+    const byte rel_note = value % 12;
+    const byte rel_octave = value / 12;
     if (voice.waveform == NOISE) {
         voice.freq = noisePeriods[rel_note];
     } else {
@@ -427,7 +536,15 @@ inline void executeCommand(Voice& voice, const byte cmd) {
 }
 
 void loop() {
-    // Check if button is pressed for stoping song, taking care of debouncing
+    /*_delay_ms(300);
+    Serial.print("ticks=");
+    Serial.print(ticks);
+    Serial.print(", timer0_compa_tick=");
+    Serial.print(timer0_compa_tick);
+    Serial.print('\n');
+    digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));*/
+    
+    /*// Check if button is pressed for stoping song, taking care of debouncing
     byte buttonPressed = !digitalRead(2);
     if (buttonPressed) {
         if (!justAwoke) {
@@ -444,13 +561,14 @@ void loop() {
             playing = false;
             wantsToStop = false;
         }
-    }
+    }*/
 
     // If we are not playing, go to sleep.
     // After waking up, reset state.
     if (!playing) {
-        goToSleep();
+        //goToSleep();
 
+        Serial.println("START");
         playing = true;
         for (int i = 0; i < NUM_VOICES; i++) {
             Voice* v = &voices[i];
@@ -481,6 +599,9 @@ void loop() {
         for (int i = 0; i < NUM_VOICES; i++) {
             anyVoicePlaying |= playVoice(voices[i]);
         }
-        if (!anyVoicePlaying) playing = false;
+        if (!anyVoicePlaying) {
+            playing = false;
+            Serial.println("END");
+        }
     }
 }

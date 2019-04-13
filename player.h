@@ -80,7 +80,8 @@ struct Envelope {
 
 struct Voice {
     // Player-related registers
-    byte*     ptr;                    // Voice track pointer
+    // (const byte* because it's a variable pointer to an immutable object)
+    const byte*     ptr;                    // Voice track pointer
     bool      gate;
     uint16_t  nlen;                   // Note length (in ticks)
     uint16_t  qlen;                   // Quantization length (in ticks)
@@ -92,9 +93,9 @@ struct Voice {
     uint8_t   octave;                 // Octave (0-7)
     int8_t    transpose;              // Note transpose (-127 - 128)
     uint8_t   volume;                 // Volume (0-15)
-    byte*     track_loop_ptr;         // Track loop (set by TRACK_LOOP command)
+    const  byte*     track_loop_ptr;         // Track loop (set by TRACK_LOOP command)
     uint8_t   loops_idx;              // Current loop index
-    byte*     loops_ptr[MAX_LOOPS];   // Loop pointers
+    const  byte*     loops_ptr[MAX_LOOPS];   // Loop pointers
     uint8_t   loops_c[MAX_LOOPS];     // Loop repetion counters
 
     // For each envelope, there's an index to the envelope itself,
