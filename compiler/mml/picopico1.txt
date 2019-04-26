@@ -1,0 +1,6 @@
+ABCD t120
+
+A [v4  o4 l4 cegecege    cegecegecegecegeceaeceaeceaecfafcfafcfa-fcfa-fcegecege]2 v3 l2 c
+B [v4  o4 l4 dcdcdcdc l2>a g e d c<a b>c e r d<b b b b c r>c d e  d c  r r r r ]2
+C [v14 o4 l1 c   r       c   r   c   r  <a   r   a   f   f   a-   a-   r   r   ]2
+D [l32 v4 cr v2 cr v4 cr v2 cr rr v4 cr v2 cr v4 cr v6 er v2 cr l8 rr l16 r g]28

@@ -10,7 +10,8 @@ class State {
   }
 
   get quantLengthFrames() {
-    return Math.round(this._noteLengthExactFrames() * (this.quantLength / 8));
+    // return Math.round(this._noteLengthExactFrames() * (this.quantLength / 8));
+    return Math.round(this._noteLengthExactFrames());
   }
 
   get borrowFrames() {
@@ -22,7 +23,7 @@ class State {
     // 3750 is the number of frames in a whole minute
     // = 60s / 16ms (watchdog timer frequency)
     // TODO Verify this is accurate
-    return 3750 / this.noteLength / this.tempo;
+    return 3750 / this.tempo / this.noteLength * 4;
   }
 }
 

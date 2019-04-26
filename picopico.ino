@@ -22,10 +22,9 @@
  *
 */
 
-#include <avr/sleep.h>
 #include "player.h"
 #include "tune.h"
-#include <wiring.c>
+// #include <wiring.c>
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -34,9 +33,9 @@
 
 #define NUM_VOICES      4
 #define DEFAULT_OCTAVE  4
-#define DEFAULT_NLEN    16
+#define DEFAULT_NLEN    4
 #define DEFAULT_VOL     15
-#define DEFAULT_PW      0x80
+#define DEFAULT_PW      0xA0
 
 const int PIN_LED = 13;
 
@@ -52,32 +51,21 @@ volatile bool nextTick = false;
 Voice voices[NUM_VOICES] = {};
 byte playingVoices = 0;
 
-bool playing = false, wantsToStop = false;
-volatile bool justAwoke = false;
-
-
-/*// External interrupt 0
-ISR(INT0_vect) {
-    GIMSK = 0;            // Disable interrupt because this routine may fire multiple times
-                          // while pin is held low (button pressed)
-    justAwoke = true;
-}*/
-
-volatile unsigned long int timer0_compa_tick = 0;
+bool playing = false;
 
 // Watchdog interrupt counts ticks (every 16ms)
 ISR(WDT_vect) {
-    #if defined(WDTCSR)
-        WDTCSR |= 1<<WDIE;
-    #elif defined(WDTCR)
-        WDTCR |= 1<<WDIE;
-    #endif
-    ticks++;
-    nextTick = true;
+    if (!nextTick) {
+        nextTick = true;
+        ticks++;
+        if (ticks > 60) {
+            ticks = 0;
+            digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
+        }
+    }
 }
 
 ISR(TIMER0_COMPA_vect) {
-    //timer0_compa_tick++;
     unsigned char temp;
     signed char stemp, mask, out = 0;
     Voice* v;
@@ -85,14 +73,14 @@ ISR(TIMER0_COMPA_vect) {
     // Voice 1 and 2: Pulses
     for (int c = 0; c < 2; c++) {
         v = &voices[c];
-        v->acc += v->freq;
+        v->acc += v->freq / 2;
         temp = (v->acc >> 8) & v->pw;
         out += (temp ? v->amp : 0) >> 2;
     }
 
     // Voice 3: Triangle
     v = &voices[2];
-    v->acc += v->freq;
+    v->acc += v->freq / 4;
     stemp = v->acc >> 8;
     mask = stemp >> 7;
     if (v->amp != 0) out += (stemp ^ mask) >> 1;
@@ -132,12 +120,8 @@ ISR(TIMER0_COMPA_vect) {
 // Setup **********************************************
 
 void setup() {
-    // set_sleep_mode(SLEEP_MODE_PWR_DOWN);
-
-    // // Set all pins as input and enable internal pull-up resistor
-    // for (int i = 0; i <= 3; i++) {
-        // pinMode(i, INPUT_PULLUP);
-    // }
+    Serial.begin(115200);
+    cli();
 
     // Enable 64 MHz PLL and use as source for Timer1/Timer4
 
@@ -237,45 +221,14 @@ void setup() {
     
     // Enable Watchdog timer for 128Hz interrupt
     #if defined(WDTCSR)
-        WDTCSR |= 1<<WDIE;
+        WDTCSR = 1<<WDIE;
     #elif defined(WDTCR)
-        WDTCR |= 1<<WDIE;
+        WDTCR = 1<<WDIE;
     #endif
-
-    //GIMSK = 0;                     // Disable INT0
-    _delay_ms(1000);
+    
+    sei();
+    
 }
-
-/*void goToSleep(void) {
-    byte adcsra, mcucr1, mcucr2, wdtcr;
-
-    WDTCR = 0;                                // Disable Watchdog timer
-    TIMSK = 0;                                // Disable all timers
-
-    sleep_enable();
-    adcsra = ADCSRA;                          // Save ADCSRA
-    ADCSRA &= ~_BV(ADEN);                     // Disable ADC
-
-    cli();                                    // Stop interrupts to ensure the BOD timed sequence executes as required
-    GIMSK = _BV(INT0);                        // Enable INT0
-    mcucr1 = MCUCR | _BV(BODS) | _BV(BODSE);  // Turn off the brown-out detector
-    mcucr2 = mcucr1 & ~_BV(BODSE);            // If the MCU does not have BOD disable capability,
-    MCUCR = mcucr1;                           //   this code has no effect
-    MCUCR = mcucr2;
-
-    sei();                                    // Ensure interrupts enabled so we can wake up again
-    sleep_cpu();                              // Go to sleep
-    // Now asleep ...
-
-    // ... awake again
-    sleep_disable();                          // Wake up here
-    ADCSRA = adcsra;                          // Restore ADCSRA
-
-    PLLCSR = 1<<PCKE | 1<<PLLE;               // Re-enable PLL (for some reason, this is needed after sleeping...)
-    TIMSK = 1<<OCIE0A;                        // Enable timer compare match, disable overflow
-    WDTCR = 1<<WDIE;                          // Enable Watchdog timer for 128Hz interrupt
-}*/
-
 
 // Main loop
 
@@ -320,20 +273,22 @@ bool playVoice(Voice& voice) {
     return true;
 }
 
-byte fetchNextByte(Voice& voice) {
-    return pgm_read_byte(voice.ptr++);
+inline byte fetchNextByte(Voice& voice) {
+    // return pgm_read_byte(voice.ptr++);
+    return *(voice.ptr++);
 }
 
 inline void playNote(Voice& voice, byte note) {
     voice.playing = true;
 
     // If note is not a rest, set frequency based on note and current octave
-    if (note != REST) {
-        voice.note = (note & 0xf) - 2;
+    if ((note & NOTE_MASK) == REST) {
+        voice.amp = 0;
+    } else {
+        voice.note = (note & NOTE_MASK) - 2;
         voice.amp = amp[voice.volume];
         voice.gate = true;
     }
-
     // Set note length counter
     if (note & WITH_LEN) {
         // If note command has a length counter parameter, use it (word or byte)
@@ -363,7 +318,8 @@ inline void playNote(Voice& voice, byte note) {
 }
 
 inline byte fetchSeqValue(const Envelope& env) {
-    return pgm_read_byte(Seqs[env.id - 1] + env.i - 1);
+    // return pgm_read_byte(Seqs[env.id - 1] + env.i - 1);
+    return *(Seqs[env.id - 1] + env.i - 1);
 }
 
 byte playSequence(Voice& voice, Envelope& env) {
@@ -425,7 +381,7 @@ inline void playSequences(Voice& voice) {
     } else {
         voice.freq = scale[rel_note] >> (8 - ((voice.octave + rel_octave) % 8));
     }
-
+    
     // Timbre Envelope
     if (voice.timbre_env.id) {
         const byte value = playSequence(voice, voice.timbre_env);
@@ -436,6 +392,13 @@ inline void playSequences(Voice& voice) {
 
     // Pitch Envelope
     // TODO...
+
+    // Serial.print("octave: ");
+    // Serial.print(voice.octave);
+    // Serial.print(" note: ");
+    // Serial.print((voice.note & NOTE_MASK));
+    // Serial.print('\n');
+    
 }
 
 void resetSequence(Envelope& env) {
@@ -543,31 +506,10 @@ void loop() {
     Serial.print(timer0_compa_tick);
     Serial.print('\n');
     digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));*/
-    
-    /*// Check if button is pressed for stoping song, taking care of debouncing
-    byte buttonPressed = !digitalRead(2);
-    if (buttonPressed) {
-        if (!justAwoke) {
-            // Song was playing, user is pressing button. Prepare for stop
-            wantsToStop = true;
-        }
-    } else {
-        if (justAwoke) {
-            // User left button after waking up.
-            justAwoke = false;
-        } else if (wantsToStop) {
-            // User was pressing button while song was playing,
-            // now stopped pressing.  Stop playing.
-            playing = false;
-            wantsToStop = false;
-        }
-    }*/
 
     // If we are not playing, go to sleep.
     // After waking up, reset state.
     if (!playing) {
-        //goToSleep();
-
         Serial.println("START");
         playing = true;
         for (int i = 0; i < NUM_VOICES; i++) {
@@ -595,13 +537,20 @@ void loop() {
 
     if (nextTick) {
         nextTick = false;
+        // Serial.print("tick: ");
+        // Serial.print(ticks);
+        // Serial.print('\n');
         bool anyVoicePlaying = false;
         for (int i = 0; i < NUM_VOICES; i++) {
             anyVoicePlaying |= playVoice(voices[i]);
         }
         if (!anyVoicePlaying) {
+            for (int i = 0; i < NUM_VOICES; i++) {
+                voices[i].amp = 0;
+            }
             playing = false;
             Serial.println("END");
+            _delay_ms(1000);
         }
     }
 }

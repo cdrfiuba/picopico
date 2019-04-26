@@ -4,12 +4,12 @@ const State = require('./state');
 const numChannels = 4;
 
 const defaultChannelState = {
-  tempo: 150,
-  noteLength: 4,
-  quantLength: 8,
+  tempo: 120,
+  noteLength: 0,
+  quantLength: 0,
   borrow: 0.0,
 
-  octave: 3,
+  octave: 4,
   transpose: 0,
   pitch: 0,
 };

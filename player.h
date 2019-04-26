@@ -7,19 +7,21 @@
 const byte END = 0;
 
 // Note commands
-const byte REST    = 1;
-const byte NOTE_C  = 2;
-const byte NOTE_CS = 3;
-const byte NOTE_D  = 4;
-const byte NOTE_DS = 5;
-const byte NOTE_E  = 6;
-const byte NOTE_F  = 7;
-const byte NOTE_FS = 8;
-const byte NOTE_G  = 9;
-const byte NOTE_GS = 10;
-const byte NOTE_A  = 11;
-const byte NOTE_AS = 12;
-const byte NOTE_B  = 13;
+const byte REST    = 0x01;
+const byte NOTE_C  = 0x02;
+const byte NOTE_CS = 0x03;
+const byte NOTE_D  = 0x04;
+const byte NOTE_DS = 0x05;
+const byte NOTE_E  = 0x06;
+const byte NOTE_F  = 0x07;
+const byte NOTE_FS = 0x08;
+const byte NOTE_G  = 0x09;
+const byte NOTE_GS = 0x0A;
+const byte NOTE_A  = 0x0B;
+const byte NOTE_AS = 0x0C;
+const byte NOTE_B  = 0x0D;
+
+const byte NOTE_MASK  = 0x0F;
 
 // Note flags
 enum NoteFlag {
@@ -93,9 +95,9 @@ struct Voice {
     uint8_t   octave;                 // Octave (0-7)
     int8_t    transpose;              // Note transpose (-127 - 128)
     uint8_t   volume;                 // Volume (0-15)
-    const  byte*     track_loop_ptr;         // Track loop (set by TRACK_LOOP command)
+    const byte*     track_loop_ptr;         // Track loop (set by TRACK_LOOP command)
     uint8_t   loops_idx;              // Current loop index
-    const  byte*     loops_ptr[MAX_LOOPS];   // Loop pointers
+    const byte*     loops_ptr[MAX_LOOPS];   // Loop pointers
     uint8_t   loops_c[MAX_LOOPS];     // Loop repetion counters
 
     // For each envelope, there's an index to the envelope itself,

@@ -3,7 +3,7 @@ module.exports = function tpl(data) {
   let seqs_defs = [];
   let seq_def = [];
   data.sequences.forEach((seq, i) => {
-    seqs_defs.push(`const byte Seq${i}[] PROGMEM = { ${seq.join(', ')} };`);
+    seqs_defs.push(`const byte Seq${i}[] = { ${seq.join(', \n')} };`);
     seq_def.push(`Seq${i}`);
   });
 
@@ -11,7 +11,7 @@ module.exports = function tpl(data) {
   let songdata_defs = [];
   let songdata_def = [];
   data.song.forEach((songdata, i) => {
-    songdata_defs.push(`const byte SongData${i}[] PROGMEM = { ${songdata.join(', ')} };`);
+    songdata_defs.push(`const byte SongData${i}[] = {\n${songdata.join(', ')}\n};`);
     songdata_def.push(`SongData${i}`);
   });
 
@@ -19,9 +19,8 @@ module.exports = function tpl(data) {
 #define __TUNE_H__
 
 #include "player.h"
-
 ${seqs_defs.join('\n')}
-const byte Seqs[] = {${seq_def.join(', ')}};
+const byte* Seqs[] = {${seq_def.join(', ') || "{}"}};
 
 ${songdata_defs.join('\n')}
 const byte* SongData[] = {${songdata_def.join(', ')}};
