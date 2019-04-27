@@ -24,20 +24,28 @@
 
 #include "player.h"
 #include "tune.h"
-// #include <wiring.c>
+#include <MIDIUSB.h>
+#include <pitchToNote.h>
 
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-#define NUM_VOICES      4
-#define DEFAULT_OCTAVE  4
-#define DEFAULT_NLEN    4
-#define DEFAULT_VOL     15
-#define DEFAULT_PW      0xA0
+#define NUM_VOICES         5
+#define MANUAL_VOICE_INDEX 4
+#define DEFAULT_OCTAVE     4
+#define DEFAULT_NLEN       4
+#define DEFAULT_VOL        15
+#define DEFAULT_PW         0xA0
 
 const int PIN_LED = 13;
+const bool useMIDI = true;
+
+// midi constants
+const unsigned char MESSAGE_NOTE_OFF = 0b1000;
+const unsigned char MESSAGE_NOTE_ON = 0b1001;
+const unsigned char MASK_MESSAGE_CHANNEL = 0b00001111;
 
 // Note buffer
 volatile uint16_t lfsr = 1;
@@ -45,23 +53,41 @@ volatile char lfsrOut = 0;
 volatile signed char oldTemp = 0; // FIXME change variable name
 
 // Global tick counter
-volatile unsigned int ticks = 0;
+volatile uint8_t ticks = 0;
 volatile bool nextTick = false;
 
 Voice voices[NUM_VOICES] = {};
 byte playingVoices = 0;
 
-bool playing = false;
+volatile bool playing = false;
+volatile bool mustRestartSong = false;
 
+char debugStringBuffer[20];
+bool debugMode = false;
+// sprintf + serial of 20 bytes takes ~200us
+// sprintf + serial of 10 bytes takes ~144us
+// sprintf + serial of  5 bytes takes ~108us
+#define serialDebug(...) \
+    if (debugMode) { \
+        sprintf(debugStringBuffer, __VA_ARGS__); \
+        Serial.print(debugStringBuffer); \
+    }
+  
 // Watchdog interrupt counts ticks (every 16ms)
 ISR(WDT_vect) {
-    if (!nextTick) {
-        nextTick = true;
-        ticks++;
-        if (ticks > 60) {
-            ticks = 0;
-            digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
-        }
+    WDTCSR = 1<<WDIE;
+    // if the watchdog timer fires before the last tick was completed,
+    // while still playing, toggle the led
+    if (nextTick && playing) {
+        digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
+    }
+    nextTick = true;
+    ticks++;
+    if (ticks > 60) {
+        ticks = 0;
+        // after 60 ticks without playback, restart the song
+        // by reinitializing the song pointers in loop()
+        if (!playing) mustRestartSong = true;
     }
 }
 
@@ -70,50 +96,45 @@ ISR(TIMER0_COMPA_vect) {
     signed char stemp, mask, out = 0;
     Voice* v;
 
-    // Voice 1 and 2: Pulses
-    for (int c = 0; c < 2; c++) {
-        v = &voices[c];
-        v->acc += v->freq / 2;
-        temp = (v->acc >> 8) & v->pw;
-        out += (temp ? v->amp : 0) >> 2;
+    for (int i = 0; i < NUM_VOICES; i++) {
+        v = &voices[i];
+        switch (v->waveform) {
+            case PULSE:
+                v->acc += v->freq / 2;
+                temp = (v->acc >> 8) & v->pw;
+                out += (temp ? v->amp : 0) >> 2;
+                break;
+            case TRI:
+                v->acc += v->freq / 4;
+                stemp = v->acc >> 8;
+                mask = stemp >> 7;
+                if (v->amp != 0) out += (stemp ^ mask) >> 1;
+                break;
+            case SAW:
+                // not implemented yet
+                break;
+            case NOISE:
+                v->acc += v->freq;
+                stemp = (v->acc >> 8) & 0x80;
+                // if temp != oldTemp, trigger the LFSR to generate a new pseudorandom value
+                if (stemp != oldTemp) {
+                    lfsrOut = (lfsr & 1) ^ ((lfsr & 2) >> 1);  // output is bit 0 XOR bit 1
+                    lfsr = (lfsr >> 1) | (lfsrOut << 14);      // shift and include output on bit 15
+                    oldTemp = stemp;
+                }
+                out += (lfsrOut ? v->amp : 0) >> 2;
+                break;
+        }
     }
 
-    // Voice 3: Triangle
-    v = &voices[2];
-    v->acc += v->freq / 4;
-    stemp = v->acc >> 8;
-    mask = stemp >> 7;
-    if (v->amp != 0) out += (stemp ^ mask) >> 1;
-
-    // Voice 4: Noise
-    //
+    // notes on the noise channels:
     // This noise generator is somewhat based on the mechanism found in the NES APU.
     // The NES has a linear-feedback shift register for generating pseudorandom numbers.
     // It starts with a register set to 1, and when the period counter reaches 0, it
     // clocks the shift register.
     // The LFSR performs an Exclusive OR between bit 0 and bit 1, then shifts to the
     // right, and sets/resets bit 15 based on the exclusive OR result.
-    //
-    v = &voices[3];
-    v->acc += v->freq;
-    stemp = (v->acc >> 8) & 0x80;
-    // if temp != oldTemp, trigger the LFSR to generate a new pseudorandom value
-    if (stemp != oldTemp) {
-        lfsrOut = (lfsr & 1) ^ ((lfsr & 2) >> 1);  // output is bit 0 XOR bit 1
-        lfsr = (lfsr >> 1) | (lfsrOut << 14);      // shift and include output on bit 15
-        oldTemp = stemp;
-    }
-    out += (lfsrOut ? v->amp : 0) >> 2;
 
-    /*
-    // for ATmega16u4-32u4
-    #if defined(OCR4A)
-        OCR4A = out;
-    // for ATtiny25-45-85
-    #elif defined(OCR1B)
-        OCR1B = out;
-    #endif
-    */
     OCR1B = out;
 }
 
@@ -227,6 +248,35 @@ void setup() {
     #endif
     
     sei();
+
+    // voice initialization
+    for (int i = 0; i < NUM_VOICES; i++) {
+        Voice* v = &voices[i];
+        // the manual voice is only played through midi
+        if (i != MANUAL_VOICE_INDEX) {
+            v->ptr = SongData[i];
+        }
+        v->playing = false;
+        v->finished = false;
+        v->nlen = DEFAULT_NLEN;
+        v->qlen = v->nlen;
+        v->octave = DEFAULT_OCTAVE;
+        v->transpose = 0;
+        v->volume = DEFAULT_VOL;
+        v->track_loop_ptr = NULL;
+        v->loops_idx = -1;
+        v->gate = false;
+        v->pw = DEFAULT_PW;
+    }
+    voices[0].waveform = PULSE;
+    voices[1].waveform = PULSE;
+    voices[2].waveform = TRI;
+    voices[3].waveform = NOISE;
+    voices[4].waveform = TRI;
+    lfsrOut = 0;
+
+    playing = true;
+    serialDebug("START\n");
     
 }
 
@@ -393,12 +443,6 @@ inline void playSequences(Voice& voice) {
     // Pitch Envelope
     // TODO...
 
-    // Serial.print("octave: ");
-    // Serial.print(voice.octave);
-    // Serial.print(" note: ");
-    // Serial.print((voice.note & NOTE_MASK));
-    // Serial.print('\n');
-    
 }
 
 void resetSequence(Envelope& env) {
@@ -499,58 +543,100 @@ inline void executeCommand(Voice& voice, const byte cmd) {
 }
 
 void loop() {
-    /*_delay_ms(300);
-    Serial.print("ticks=");
-    Serial.print(ticks);
-    Serial.print(", timer0_compa_tick=");
-    Serial.print(timer0_compa_tick);
-    Serial.print('\n');
-    digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));*/
-
-    // If we are not playing, go to sleep.
-    // After waking up, reset state.
-    if (!playing) {
-        Serial.println("START");
-        playing = true;
-        for (int i = 0; i < NUM_VOICES; i++) {
-            Voice* v = &voices[i];
-            v->ptr = SongData[i];
-            v->playing = false;
-            v->finished = false;
-            v->nlen = DEFAULT_NLEN;
-            v->qlen = v->nlen;
-            v->octave = DEFAULT_OCTAVE;
-            v->transpose = 0;
-            v->volume = DEFAULT_VOL;
-            v->track_loop_ptr = NULL;
-            v->loops_idx = -1;
-            v->gate = false;
-            v->pw = DEFAULT_PW;
+    Voice* v;
+    
+    if (playing && nextTick) {
+        // debug voices via serial
+        if (ticks == 0) {
+            for (int i = 0; i < NUM_VOICES; i++) {
+                v = &voices[i];
+                if (i != MANUAL_VOICE_INDEX) {
+                    serialDebug("v: %.1i ptr: %.3u | ", i, (unsigned int)v->ptr);
+                }
+            }
+            serialDebug("\n");
         }
-        voices[0].waveform = PULSE;
-        voices[1].waveform = PULSE;
-        voices[2].waveform = TRI;
-        voices[3].waveform = NOISE;
-        lfsrOut = 0;
-        return;
-    }
-
-    if (nextTick) {
-        nextTick = false;
-        // Serial.print("tick: ");
-        // Serial.print(ticks);
-        // Serial.print('\n');
+        
+        // play recorded song data
         bool anyVoicePlaying = false;
         for (int i = 0; i < NUM_VOICES; i++) {
             anyVoicePlaying |= playVoice(voices[i]);
         }
+        // after each voice finishes playing, restore the flag
+        nextTick = false;
+        
+        // stop playback after all voices have finished playing
         if (!anyVoicePlaying) {
             for (int i = 0; i < NUM_VOICES; i++) {
-                voices[i].amp = 0;
+                v = &voices[i];
+                // the manual voice can continue playing after the song ends
+                if (i != MANUAL_VOICE_INDEX) {
+                    v->amp = 0;
+                }
             }
             playing = false;
-            Serial.println("END");
-            _delay_ms(1000);
+            serialDebug("END\n");
+            digitalWrite(PIN_LED, LOW);
         }
+    }
+    
+    // restart song when flag is raised
+    if (mustRestartSong) {
+        mustRestartSong = false;
+        for (int i = 0; i < NUM_VOICES; i++) {
+            v = &voices[i];
+            // the manual voice is only played through midi
+            if (i != MANUAL_VOICE_INDEX) {
+                v->ptr = SongData[i];
+                v->finished = false;
+            }
+        }
+        playing = true;
+        serialDebug("START\n");
+    }
+
+    // midi usb playback using the param MANUAL_VOICE_INDEX
+    if (useMIDI) {
+        midiEventPacket_t rx;
+        do {
+            rx = MidiUSB.read();
+            if (rx.header != 0) {
+                v = &voices[MANUAL_VOICE_INDEX];
+                byte message = (rx.byte1 >> 4) & MASK_MESSAGE_CHANNEL;
+                // byte channel = (rx.byte1 & MASK_MESSAGE_CHANNEL) + 1;
+                byte midi_note = rx.byte2;
+                // byte velocity = rx.byte3;
+                if (message == MESSAGE_NOTE_ON) {
+                    v->octave = ((midi_note - midi_note % 12) / 12) - 1;
+                    v->note = ((midi_note % 12) + 2) - 2;
+                    v->amp = amp[v->volume];
+                    v->gate = false;
+                    v->freq = scale[v->note] >> (8 - (v->octave % 8));
+
+                    // Serial.print("midi note: ");
+                    // Serial.print(midi_note);
+                    // Serial.print(" - v note: ");
+                    // Serial.print(v->note);
+                    // Serial.print(" - v octave: ");
+                    // Serial.print(v->octave);
+                    // Serial.print("\n");
+                }
+                if (message == MESSAGE_NOTE_OFF) {
+                    if (v->note == ((midi_note % 12) + 2) - 2) {
+                        v->amp = 0;
+                    }
+                    // special note messages
+                    if (midi_note == pitchC1) {
+                        debugMode = !debugMode;
+                    }
+                    if (midi_note == pitchD1b) {
+                        v->waveform = TRI;
+                    }
+                    if (midi_note == pitchD1) {
+                        v->waveform = PULSE;
+                    }
+                }
+            }
+        } while (rx.header != 0);
     }
 }
