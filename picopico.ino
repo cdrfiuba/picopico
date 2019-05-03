@@ -53,8 +53,10 @@ volatile char lfsrOut = 0;
 volatile signed char oldTemp = 0; // FIXME change variable name
 
 // Global tick counter
+volatile uint16_t timer0_tick = 0;
 volatile uint8_t ticks = 0;
 volatile bool nextTick = false;
+volatile bool nextBigTick = false;
 
 Voice voices[NUM_VOICES] = {};
 byte playingVoices = 0;
@@ -73,25 +75,26 @@ bool debugMode = false;
         Serial.print(debugStringBuffer); \
     }
   
-// Watchdog interrupt counts ticks (every 16ms)
-ISR(WDT_vect) {
-    WDTCSR = 1<<WDIE;
-    // if the watchdog timer fires before the last tick was completed,
-    // while still playing, toggle the led
-    if (nextTick && playing) {
-        digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
-    }
-    nextTick = true;
-    ticks++;
-    if (ticks > 60) {
-        ticks = 0;
-        // after 60 ticks without playback, restart the song
-        // by reinitializing the song pointers in loop()
-        if (!playing) mustRestartSong = true;
-    }
-}
-
 ISR(TIMER0_COMPA_vect) {
+    // tick counter for time keeping
+    timer0_tick++;
+    if (timer0_tick > 333) { // 333 = 16.65ms, 111 = 5.55ms
+        timer0_tick = 0;
+        // if the tick counter fires before the last tick was completed,
+        // while still playing, toggle the led
+        if (nextTick && playing) {
+            digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
+        }
+        // ticks and big ticks (every 1 second)
+        nextTick = true;
+        ticks++;
+        if (ticks > 60) { // 16.65ms * 60 = 999ms
+            ticks = 0;
+            nextBigTick = true;
+            // digitalWrite(PIN_LED, abs(digitalRead(PIN_LED) - 1));
+        }
+    }
+    
     unsigned char temp;
     signed char stemp, mask, out = 0;
     Voice* v;
@@ -100,21 +103,31 @@ ISR(TIMER0_COMPA_vect) {
         v = &voices[i];
         switch (v->waveform) {
             case PULSE:
-                v->acc += v->freq / 2;
+                v->acc += v->freq;
                 temp = (v->acc >> 8) & v->pw;
                 out += (temp ? v->amp : 0) >> 2;
                 break;
             case TRI:
-                v->acc += v->freq / 4;
+                v->acc += v->freq / 2;
                 stemp = v->acc >> 8;
                 mask = stemp >> 7;
-                if (v->amp != 0) out += (stemp ^ mask) >> 1;
+                if (v->amp != 0) {
+                    if (v->volume > 12) { // 13 14 15
+                        out += (stemp ^ mask) >> 1;
+                    } else if (v->volume > 8) { // 9 10 11 12
+                        out += (stemp ^ mask) >> 2;
+                    } else if (v->volume > 4) { // 5 6 7 8
+                        out += (stemp ^ mask) >> 3;
+                    } else if (v->volume > 0) { // 1 2 3 4
+                        out += (stemp ^ mask) >> 4;
+                    }
+                }
                 break;
             case SAW:
                 // not implemented yet
                 break;
             case NOISE:
-                v->acc += v->freq;
+                v->acc += v->freq * 8;
                 stemp = (v->acc >> 8) & 0x80;
                 // if temp != oldTemp, trigger the LFSR to generate a new pseudorandom value
                 if (stemp != oldTemp) {
@@ -229,22 +242,22 @@ void setup() {
     //#endif
     
     // Set up Timer/Counter0 for 20kHz interrupt to output samples.
-    TCCR0A = 3<<WGM00;             // Fast PWM
-    TCCR0B = 1<<WGM02 | 2<<CS00;   // 1/8 prescale
-    OCR0A = 49;                    // Divide by 400
+    // The resulting frequency is calculated similar to the CTC mode.
+    // F_CPU / (2 * PRESCALER * (1 + OCR0A))
+    TCCR0A = 0;
+    TCCR0B = 0;
+    sbi(TCCR0A, WGM00);
+    sbi(TCCR0A, WGM01);
+    sbi(TCCR0B, WGM02); // Fast PWM
+    sbi(TCCR0B, CS01); // 1/8 prescale
+    // OCR0A = 49; // Divide by 800 (40KHz)
+    OCR0A = 99; // Divide by 1600 (20KHz)
     
     // On Timer0, enable timer compare match, disable overflow
     #if defined(TIMSK)
         TIMSK = 1 << OCIE0A | 0 << TOIE0;
     #elif defined(TIMSK0)
         TIMSK0 = 1 << OCIE0A | 0 << TOIE0;
-    #endif
-    
-    // Enable Watchdog timer for 128Hz interrupt
-    #if defined(WDTCSR)
-        WDTCSR = 1<<WDIE;
-    #elif defined(WDTCR)
-        WDTCR = 1<<WDIE;
     #endif
     
     sei();
@@ -268,12 +281,14 @@ void setup() {
         v->gate = false;
         v->pw = DEFAULT_PW;
     }
+    // voices
     voices[0].waveform = PULSE;
     voices[1].waveform = PULSE;
     voices[2].waveform = TRI;
     voices[3].waveform = NOISE;
-    voices[4].waveform = TRI;
-    lfsrOut = 0;
+    // manual voices
+    voices[MANUAL_VOICE_INDEX].waveform = PULSE;
+    voices[MANUAL_VOICE_INDEX].pw = 0x80;
 
     playing = true;
     serialDebug("START\n");
@@ -551,7 +566,7 @@ void loop() {
             for (int i = 0; i < NUM_VOICES; i++) {
                 v = &voices[i];
                 if (i != MANUAL_VOICE_INDEX) {
-                    serialDebug("v: %.1i ptr: %.3u | ", i, (unsigned int)v->ptr);
+                    serialDebug("v: %.1i ptr: %.3u | ", i, (unsigned int)(v->ptr - SongData[i]));
                 }
             }
             serialDebug("\n");
@@ -575,13 +590,17 @@ void loop() {
                 }
             }
             playing = false;
+            ticks = 0;
+            nextBigTick = false;
+            mustRestartSong = true;
             serialDebug("END\n");
             digitalWrite(PIN_LED, LOW);
         }
     }
     
     // restart song when flag is raised
-    if (mustRestartSong) {
+    if (mustRestartSong && nextBigTick) {
+        nextBigTick = false;
         mustRestartSong = false;
         for (int i = 0; i < NUM_VOICES; i++) {
             v = &voices[i];
@@ -589,8 +608,15 @@ void loop() {
             if (i != MANUAL_VOICE_INDEX) {
                 v->ptr = SongData[i];
                 v->finished = false;
+                v->playing = false;
+                v->track_loop_ptr = NULL;
+                v->loops_ptr[v->loops_idx] = v->ptr;
+                v->loops_idx = -1;
+                resetSequences(voices[i]);
             }
         }
+        lfsr = 1;
+        lfsrOut = 0;
         playing = true;
         serialDebug("START\n");
     }
@@ -602,19 +628,20 @@ void loop() {
             rx = MidiUSB.read();
             if (rx.header != 0) {
                 v = &voices[MANUAL_VOICE_INDEX];
-                byte message = (rx.byte1 >> 4) & MASK_MESSAGE_CHANNEL;
-                // byte channel = (rx.byte1 & MASK_MESSAGE_CHANNEL) + 1;
-                byte midi_note = rx.byte2;
-                // byte velocity = rx.byte3;
+                const byte message = (rx.byte1 >> 4) & MASK_MESSAGE_CHANNEL;
+                // const byte channel = (rx.byte1 & MASK_MESSAGE_CHANNEL) + 1;
+                const byte midiNote = rx.byte2;
+                // const byte velocity = rx.byte3;
                 if (message == MESSAGE_NOTE_ON) {
-                    v->octave = ((midi_note - midi_note % 12) / 12) - 1;
-                    v->note = ((midi_note % 12) + 2) - 2;
+                    if (midiNote == pitchC1 || midiNote == pitchD1b || midiNote == pitchD1 || midiNote == pitchE1b || midiNote == pitchE1) continue;
+                    v->octave = ((midiNote - midiNote % 12) / 12) - 1;
+                    v->note = ((midiNote % 12) + 2) - 2;
                     v->amp = amp[v->volume];
                     v->gate = false;
                     v->freq = scale[v->note] >> (8 - (v->octave % 8));
 
                     // Serial.print("midi note: ");
-                    // Serial.print(midi_note);
+                    // Serial.print(midiNote);
                     // Serial.print(" - v note: ");
                     // Serial.print(v->note);
                     // Serial.print(" - v octave: ");
@@ -622,18 +649,34 @@ void loop() {
                     // Serial.print("\n");
                 }
                 if (message == MESSAGE_NOTE_OFF) {
-                    if (v->note == ((midi_note % 12) + 2) - 2) {
+                    const uint8_t noteOffOctave = ((midiNote - midiNote % 12) / 12) - 1;
+                    const uint8_t noteOffNote = ((midiNote % 12) + 2) - 2;
+                    if (v->note == noteOffNote && v->octave == noteOffOctave) {
                         v->amp = 0;
                     }
                     // special note messages
-                    if (midi_note == pitchC1) {
+                    if (midiNote == pitchC1) {
                         debugMode = !debugMode;
                     }
-                    if (midi_note == pitchD1b) {
+                    if (midiNote == pitchD1b) {
                         v->waveform = TRI;
                     }
-                    if (midi_note == pitchD1) {
+                    if (midiNote == pitchD1) {
                         v->waveform = PULSE;
+                    }
+                    if (midiNote == pitchE1b) {
+                        playing = !playing;
+                        for (int i = 0; i < NUM_VOICES; i++) {
+                            v = &voices[i];
+                            v->amp = 0;
+                        }
+                        serialDebug(!playing ? "PAUSE\n" : "UNPAUSE\n");
+                        digitalWrite(PIN_LED, LOW);
+                    }
+                    if (midiNote == pitchE1) {
+                        nextBigTick = true;
+                        serialDebug("RESTART\n");
+                        mustRestartSong = true;
                     }
                 }
             }

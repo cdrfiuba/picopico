@@ -20,10 +20,11 @@ class State {
   }
 
   _noteLengthExactFrames() {
-    // 3750 is the number of frames in a whole minute
-    // = 60s / 16ms (watchdog timer frequency)
-    // TODO Verify this is accurate
-    return 3750 / this.tempo / this.noteLength * 4;
+    // returns the number of frames in a whole minute, 
+    // taking into account tempo and the length of each note
+    // 10811 = 60s / 5.55ms (111 ticks of timer0, at 20KHz, 50us each tick)
+    // 3604 = 60s / 5.55ms (333 ticks of timer0, at 20KHz, 50us each tick)
+    return 3604 / this.tempo / this.noteLength * 4;
   }
 }
 
