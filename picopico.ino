@@ -124,7 +124,9 @@ ISR(TIMER0_COMPA_vect) {
                 }
                 break;
             case SAW:
-                // not implemented yet
+                v->acc += v->freq;
+                temp = v->acc >> 8;
+                out += (temp ? v->amp : 0) >> 2;
                 break;
             case NOISE:
                 v->acc += v->freq * 8;

@@ -1,7 +1,7 @@
 const _parse = require('./parser').parse;
 const State = require('./state');
 
-const numChannels = 4;
+const numChannels = 4; // 7
 
 const defaultChannelState = {
   tempo: 120,

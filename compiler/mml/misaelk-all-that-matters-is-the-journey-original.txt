@@ -1,0 +1,110 @@
+; This is a Remix of All That Matters Is The Journey, from OHC550
+
+; triangle: ABCDF 
+; noise: E
+; square: G
+
+; drum pattern
+;1           2           3           4          |1           2           3           4          |
+;chika chika ta    chika chika ta    chika chika chika chika ta    chika chika ta    chika chika
+;ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch ch
+;tum         pa                tum         pa          tum   pa          tum   tum   pa
+
+ABCDEFG t85 v12
+ABCDEFG l8 r ; short pause debug
+
+
+; triangle chords intro
+A [o5  l2 f+ l4 e l8 f+ d d2 l4 e g  l2 f+ l4 e l8 f+ d d1]2
+B [[o5 l2 d  l4 c+. l8 <b b1]2                            ]2
+C [[o4 l2 b  l4 a.  l8  g g1]2                            ]2
+D [[o4 l2 g  l4 f+. l8  e e1]2                            ]2
+
+; noise drum 1 intro
+E [[[[l32 v2 cr v1 cr]2 l16 v3 dr]2 [l32 v2 cr v1 cr]2]4  ]1
+
+; noise drum 2 intro
+E [[
+E  l32 v12 cr v1 dr v2  dr v1 dr l16 v12 fr ; CHIka chika TA
+E  l32 v2  dr v1 dr v2  dr v1 dr l16 v12 cr ; chika chika TA
+E  l32 v2  dr v1 dr v12 fr v1 dr            ; chika CHIka
+
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 fr ; chika CHIka TA
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 cr ; chika CHIka TA
+E  l32 v12 fr v1 dr v2  dr v1 dr            ; CHIka chika
+E ]2]1
+
+F [[l1 r]4]2 ; melody wait
+G [[l1 r]4]2 ; bass wait
+
+ABCDEFG l8 r ; short pause debug
+
+; chords, drums and triangle melody
+A [o5  l2 f+ l4 e l8 f+ d d2 l4 e g  l2 f+ l4 e l8 f+ d d1]2
+B [[o5 l2 d  l4 c+. l8 <b b1]2                            ]2
+C [[o4 l2 b  l4 a.  l8  g g1]2                            ]2
+D [[o4 l2 g  l4 f+. l8  e e1]2                            ]2
+E [[
+E  l32 v12 cr v1 dr v2  dr v1 dr l16 v12 fr ; CHIka chika TA
+E  l32 v2  dr v1 dr v2  dr v1 dr l16 v12 cr ; chika chika TA
+E  l32 v2  dr v1 dr v12 fr v1 dr            ; chika CHIka
+
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 fr ; chika CHIka TA
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 cr ; chika CHIka TA
+E  l32 v12 fr v1 dr v2  dr v1 dr            ; CHIka chika
+E ]2]2
+
+; triangle melody
+F o7 l8
+F r <b >d e f+4 a d4 d8 r r <b a b >d
+F r <b >d e f+4 a d4 d8 r d e f+ g f+
+F r a b a f+ d e f+4 <b4 >d4 e4 r
+F r d e f+ e d e d2
+G [[l1 r]4]2 ; bass wait
+
+ABCDEFG l8 r ; short pause debug
+
+
+; short inter with chords, drums, and loud bass
+A [o5  l2 f+ l4 e l8 f+ d d2 l4 e g  l2 f+ l4 e l8 f+ d d1]1
+B [[o5 l2 d  l4 c+. l8 <b b1]2                            ]1
+C [[o4 l2 b  l4 a.  l8  g g1]2                            ]1
+D [[o4 l2 g  l4 f+. l8  e e1]2                            ]1
+E [[
+E  l32 v12 cr v1 dr v2  dr v1 dr l16 v12 fr ; CHIka chika TA
+E  l32 v2  dr v1 dr v2  dr v1 dr l16 v12 cr ; chika chika TA
+E  l32 v2  dr v1 dr v12 fr v1 dr            ; chika CHIka
+
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 fr ; chika CHIka TA
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 cr ; chika CHIka TA
+E  l32 v12 fr v1 dr v2  dr v1 dr            ; CHIka chika
+E ]2]1
+
+F [[l1 r]4]1 ; melody wait
+
+; square bass short inter
+G v15 o2 l8 [g r r e f+ r a e r r b r a r g r]2
+
+ABCDEFG l8 r ; short pause debug
+
+
+; chords, drums, soft bass, square melody
+A [o5  l2 f+ l4 e l8 f+ d d2 l4 e g  l2 f+ l4 e l8 f+ d d1]2
+B [[o5 l2 d  l4 c+. l8 <b b1]2                            ]2
+C [[o4 l2 b  l4 a.  l8  g g1]2                            ]2
+D [[o4 l2 g  l4 f+. l8  e e1]2                            ]2
+E [[
+E  l32 v12 cr v1 dr v2  dr v1 dr l16 v12 fr ; CHIka chika TA
+E  l32 v2  dr v1 dr v2  dr v1 dr l16 v12 cr ; chika chika TA
+E  l32 v2  dr v1 dr v12 fr v1 dr            ; chika CHIka
+
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 fr ; chika CHIka TA
+E  l32 v2  dr v1 dr v12 cr v1 dr l16 v12 cr ; chika CHIka TA
+E  l32 v12 fr v1 dr v2  dr v1 dr            ; CHIka chika
+E ]2]2
+
+; square bass
+G v8 o2 l8
+G [g4 r g f+4 f+ e e1]2
+G g4 r g f+4 f+ e8 e4 r e16 r16 e r e r
+G l8 g4 r g f+4 f+ e8 r e16 r16 e >e16 r16 e <e16 r16 e r

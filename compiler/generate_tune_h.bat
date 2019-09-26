@@ -1,0 +1,1 @@
+node bin/picopicoc -o ../tune.h "mml/picopico1.txt"

@@ -1,0 +1,28 @@
+; Once Upon A Time, from Undertale, by Toby Fox
+; transcription by Misael.K
+
+ABCD t130
+A @w45
+B @w20
+D @n90
+
+; intro
+A v4  l4 [o6 cr o7 cr o6 grrrfr o7 cr o6 crrrcrfro7 crdrcr o6 grfr rr]2
+B v3  l2 [o6 c  o7 c  o6 g r f  o7 c  o6 c r c f o7 c d c  o6 g f  r ]1
+B v3  l2 [o6 c  o7 c  o6 g r f  o7 c  o6 c r c f o7 c d c  o6 g f  r4]1
+C v12 l1 [o4 f           a   a-          g   f      a   a-      g2.r4]2
+D v0  l1 [[r]8                                                       ]2
+
+; pre chorus
+B v4 l16 r r o4 b- b
+; debug pre melody
+;ACD l16 r r r r
+
+; chorus
+;A v4 l4 [o2 r  o3 f g f o2 r  o3 f g f o2 r o3 f g f o2 r  o3 f g f o2 r o3 f g f r o3 f g f o2 r o3 f g f r f r e ]2 ;without delay
+A l16 o3 [[rrrr v4 fr v1 fr v4 gr v1 gr v4 fr v1 fr]7 [rrrr v4 fr v1 fr rrrr v4 er v1 er]1]2 ; with delay
+B [v4 o5 c2 o6 l4 c o5 a g f e f g2 o6 e. l16 d+ d l2 c. r4 o5 d2 l4 o6 c o5 a g f g a e2 g r g f e f]2
+C v12 l1 [o3 b- b- a a- g o4 c o3 a o4 d2 c2]2
+D v8 l32 o6 [[crrr r8 grrr r8 brrr r8 rrrr r8]8]2
+
+; ending verse

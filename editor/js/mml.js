@@ -364,6 +364,7 @@ function playSong(mmlData) {
   })();
 
   var MMLSequencer = (function() {
+    // var VoiceIndices = {'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6};
     var VoiceIndices = {'A': 0, 'B': 1, 'C': 2, 'D': 3};
 
     function MMLSequencer(mml) {
@@ -373,8 +374,19 @@ function playSong(mmlData) {
         new MMLVoice(new PwmGenerator),
         new MMLVoice(new PwmGenerator),
         new MMLVoice(new TriangleGenerator),
-        new MMLVoice(new NoiseGenerator)
+        new MMLVoice(new NoiseGenerator),
+        // new MMLVoice(new TriangleGenerator),
+        // new MMLVoice(new TriangleGenerator),
+        // new MMLVoice(new TriangleGenerator),
+        // new MMLVoice(new TriangleGenerator),
+        // new MMLVoice(new NoiseGenerator),
+        // new MMLVoice(new TriangleGenerator),
+        // new MMLVoice(new PwmGenerator),
       ];
+      
+      // remove comments
+      var mml = mml + "\n";
+      mml = mml.replace(/;.*$/gim, "");
 
       // Trim and remove empty lines
       var lines = mml.split("\n")

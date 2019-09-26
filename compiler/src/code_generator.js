@@ -2,7 +2,7 @@ const State = require('./state');
 const tuneTpl = require('./tune.h');
 const debug = require('debug')('code_generator');
 
-const numChannels = 4;
+const numChannels = 4; // 7
 const defaultHeaderField = 'unknown';
 
 const headerNames = ['title', 'author', 'released'];
@@ -275,6 +275,9 @@ class CodeGenerator {
     if (name === 'B') { n = 1; }
     if (name === 'C') { n = 2; }
     if (name === 'D') { n = 3; }
+    // if (name === 'E') { n = 4; }
+    // if (name === 'F') { n = 5; }
+    // if (name === 'G') { n = 6; }
     return n;
   }
 

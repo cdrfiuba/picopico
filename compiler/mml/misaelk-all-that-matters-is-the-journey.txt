@@ -1,0 +1,22 @@
+; This is a Remix of All That Matters Is The Journey, from OHC550
+
+; triangle: ABCDF 
+; noise: E
+; square: G
+
+; drum pattern
+;1           2           3           4          |1           2           3           4          |
+;chika chika ta    chika chika ta    chika chika chika chika ta    chika chika ta    chika chika
+
+ABCDEFG t85 v12
+
+; triangle chords intro
+A [o5  l2 f+ l4 e l8 f+ d d2 l4 e g  l2 f+ l4 e l8 f+ d d1]7
+B [[o5 l2 d  l4 c+. l8 <b b1]2                            ]7
+C [[o4 l2 b  l4 a.  l8  g g1]2                            ]7
+D [[o4 l2 g  l4 f+. l8  e e1]2                            ]7
+
+; noise drum 1 intro
+E l16 [v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c v3 dr v2 c v1 c v2 c v1 c]1
+; noise drum 2
+E l16 [v8 c v1 d v2 d v1 d v8 fr v2 d v1 d v2 d v1 d v8 cr v2 d v1 d v8 c v1 d   v2 d v1 d v8 c v1 d v8 fr v2 d v1 d v8 c v1 d v8 fr v2 d v1 d v2 d v1 d   v8 c v1 d v2 d v1 d v8 fr v2 d v1 d v2 d v1 d v8 cr v2 d v1 d v8 c v1 d   v2 d v1 d v8 c v1 d v8 fr v2 d v1 d v8 c v1 d v8 fr v2 d v1 d v2 d v1 d   ]6
