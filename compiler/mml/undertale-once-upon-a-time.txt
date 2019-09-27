@@ -26,3 +26,15 @@ C v12 l1 [o3 b- b- a a- g o4 c o3 a o4 d2 c2]2
 D v8 l32 o6 [[crrr r8 grrr r8 brrr r8 rrrr r8]8]2
 
 ; ending verse
+A v4 l8 [o7  cr o6 fr gr fr o5 br    o6 fr gr fr o5 b-r o6 fr gr b-r ar gr fr cr]2
+A v3 l8 [o7  cr o6 fr gr fr o5 br    o6 fr gr fr o5 b-r o6 fr gr b-r ar gr fr cr]1
+A v2 l4 [o7  c  o6 f  g  f  o5 b  v1 o6 f  g  f  o5 b-  o6 f  g  b-  a  g  f  c ]1
+
+B v2 l8 [o7 rcr o6 fr gr fr o5 br    o6 fr gr fr o5 b-r o6 fr gr b-r ar gr fr c ]2
+B v1 l8 [o7 rcr o6 fr gr fr o5 br    o6 fr gr fr o5 b-r o6 fr gr b-r ar gr fr c ]1
+B v0 l8 [o7 rcr o6 fr gr fr o5 br v0 o6 fr gr fr o5 b-r o6 fr gr b-r ar gr fr c ]1
+
+B v0  l1 [[r]8             ]2
+C v12 l1 [o5 f g o4 b- o5 f]2
+C v0  l1 [[r]8             ]1
+D v0  l1 [[r]8             ]2
