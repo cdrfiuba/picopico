@@ -32,15 +32,16 @@
 #define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
 #define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
 
-#define NUM_VOICES         5
-#define MANUAL_VOICE_INDEX 4
+#define NUM_VOICES         8
 #define DEFAULT_OCTAVE     4
 #define DEFAULT_NLEN       4
 #define DEFAULT_VOL        15
 #define DEFAULT_PW         0xA0
+#define FIRST_MANUAL_VOICE 4 // index
 
 const int PIN_LED = 13;
 const bool useMIDI = true;
+byte currentManualVoice = FIRST_MANUAL_VOICE;
 
 // midi constants
 const unsigned char MESSAGE_NOTE_OFF = 0b1000;
@@ -268,7 +269,7 @@ void setup() {
     for (int i = 0; i < NUM_VOICES; i++) {
         Voice* v = &voices[i];
         // the manual voice is only played through midi
-        if (i != MANUAL_VOICE_INDEX) {
+        if (i < FIRST_MANUAL_VOICE) {
             v->ptr = SongData[i];
         }
         v->playing = false;
@@ -289,8 +290,10 @@ void setup() {
     voices[2].waveform = TRI;
     voices[3].waveform = NOISE;
     // manual voices
-    voices[MANUAL_VOICE_INDEX].waveform = PULSE;
-    voices[MANUAL_VOICE_INDEX].pw = 0x80;
+    for (int i = FIRST_MANUAL_VOICE; i < NUM_VOICES; i++) {
+      voices[i].waveform = PULSE;
+      voices[i].pw = 0x80;
+    }
 
     playing = true;
     serialDebug("START\n");
@@ -567,7 +570,7 @@ void loop() {
         if (ticks == 0) {
             for (int i = 0; i < NUM_VOICES; i++) {
                 v = &voices[i];
-                if (i != MANUAL_VOICE_INDEX) {
+                if (i < FIRST_MANUAL_VOICE) {
                     serialDebug("v: %.1i ptr: %.3u | ", i, (unsigned int)(v->ptr - SongData[i]));
                 }
             }
@@ -587,7 +590,7 @@ void loop() {
             for (int i = 0; i < NUM_VOICES; i++) {
                 v = &voices[i];
                 // the manual voice can continue playing after the song ends
-                if (i != MANUAL_VOICE_INDEX) {
+                if (i < FIRST_MANUAL_VOICE) {
                     v->amp = 0;
                 }
             }
@@ -606,8 +609,8 @@ void loop() {
         mustRestartSong = false;
         for (int i = 0; i < NUM_VOICES; i++) {
             v = &voices[i];
-            // the manual voice is only played through midi
-            if (i != MANUAL_VOICE_INDEX) {
+            // the manual voices are only played through midi
+            if (i < FIRST_MANUAL_VOICE) {
                 v->ptr = SongData[i];
                 v->finished = false;
                 v->playing = false;
@@ -623,63 +626,84 @@ void loop() {
         serialDebug("START\n");
     }
 
-    // midi usb playback using the param MANUAL_VOICE_INDEX
+    // midi usb playback using the param FIRST_MANUAL_VOICE
     if (useMIDI) {
         midiEventPacket_t rx;
         do {
             rx = MidiUSB.read();
-            if (rx.header != 0) {
-                v = &voices[MANUAL_VOICE_INDEX];
-                const byte message = (rx.byte1 >> 4) & MASK_MESSAGE_CHANNEL;
-                // const byte channel = (rx.byte1 & MASK_MESSAGE_CHANNEL) + 1;
-                const byte midiNote = rx.byte2;
-                // const byte velocity = rx.byte3;
-                if (message == MESSAGE_NOTE_ON) {
-                    if (midiNote == pitchC1 || midiNote == pitchD1b || midiNote == pitchD1 || midiNote == pitchE1b || midiNote == pitchE1) continue;
-                    v->octave = ((midiNote - midiNote % 12) / 12) - 1;
-                    v->note = ((midiNote % 12) + 2) - 2;
-                    v->amp = amp[v->volume];
-                    v->gate = false;
-                    v->freq = scale[v->note] >> (8 - (v->octave % 8));
+            if (rx.header == 0) continue;
+            
+            const byte message = (rx.byte1 >> 4) & MASK_MESSAGE_CHANNEL;
+            // const byte channel = (rx.byte1 & MASK_MESSAGE_CHANNEL) + 1;
+            const byte midiNote = rx.byte2;
+            const byte velocity = rx.byte3;
+            if (message == MESSAGE_NOTE_ON) {
+                if (midiNote == pitchC1 || midiNote == pitchD1b || midiNote == pitchD1 || midiNote == pitchE1b || midiNote == pitchE1) continue;
 
-                    // Serial.print("midi note: ");
-                    // Serial.print(midiNote);
-                    // Serial.print(" - v note: ");
-                    // Serial.print(v->note);
-                    // Serial.print(" - v octave: ");
-                    // Serial.print(v->octave);
-                    // Serial.print("\n");
-                }
-                if (message == MESSAGE_NOTE_OFF) {
-                    const uint8_t noteOffOctave = ((midiNote - midiNote % 12) / 12) - 1;
-                    const uint8_t noteOffNote = ((midiNote % 12) + 2) - 2;
+                // find first available manual voice, by cycling through all
+                // manual voices, defaulting on the last used voice
+                byte initialManualVoice = currentManualVoice;
+                do {
+                    currentManualVoice++;
+                    if (currentManualVoice == NUM_VOICES) currentManualVoice = FIRST_MANUAL_VOICE;
+                    if (voices[currentManualVoice].amp == 0) break;
+                } while (initialManualVoice != currentManualVoice);
+                  
+                // after manual voice is found, play note in that manual voice
+                v = &voices[currentManualVoice];
+                v->octave = ((midiNote - midiNote % 12) / 12) - 1;
+                v->note = ((midiNote % 12) + 2) - 2;
+                v->volume = velocity / 8;
+                if (v->volume > 15) v->volume = 15;
+                v->amp = amp[v->volume];
+                v->gate = false;
+                v->freq = scale[v->note] >> (8 - (v->octave % 8));
+
+                serialDebug("midi note: %d", midiNote);
+                // serialDebug(" - v note: %d", v->note);
+                // serialDebug(" - v octave: %d", v->octave);
+                serialDebug(" - velocity: %d", velocity);
+                serialDebug("\n");
+            }
+            if (message == MESSAGE_NOTE_OFF) {
+                const uint8_t noteOffOctave = ((midiNote - midiNote % 12) / 12) - 1;
+                const uint8_t noteOffNote = ((midiNote % 12) + 2) - 2;
+                
+                // cycle through all voices, if a voice is playing the note, turn it off
+                for (int i = FIRST_MANUAL_VOICE; i < NUM_VOICES; i++) {
+                    v = &voices[i];
                     if (v->note == noteOffNote && v->octave == noteOffOctave) {
                         v->amp = 0;
                     }
-                    // special note messages
-                    if (midiNote == pitchC1) {
-                        debugMode = !debugMode;
+                }
+                // special note messages
+                if (midiNote == pitchC1) {
+                    debugMode = !debugMode;
+                }
+                if (midiNote == pitchD1b) {
+                    for (int i = FIRST_MANUAL_VOICE; i < NUM_VOICES; i++) {
+                      voices[i].waveform = TRI;
+                      voices[i].pw = 0x80;
                     }
-                    if (midiNote == pitchD1b) {
-                        v->waveform = TRI;
+                }
+                if (midiNote == pitchD1) {
+                    for (int i = FIRST_MANUAL_VOICE; i < NUM_VOICES; i++) {
+                      voices[i].waveform = PULSE;
                     }
-                    if (midiNote == pitchD1) {
-                        v->waveform = PULSE;
+                }
+                if (midiNote == pitchE1b) {
+                    playing = !playing;
+                    for (int i = 0; i < NUM_VOICES; i++) {
+                        v = &voices[i];
+                        v->amp = 0;
                     }
-                    if (midiNote == pitchE1b) {
-                        playing = !playing;
-                        for (int i = 0; i < NUM_VOICES; i++) {
-                            v = &voices[i];
-                            v->amp = 0;
-                        }
-                        serialDebug(!playing ? "PAUSE\n" : "UNPAUSE\n");
-                        digitalWrite(PIN_LED, LOW);
-                    }
-                    if (midiNote == pitchE1) {
-                        nextBigTick = true;
-                        serialDebug("RESTART\n");
-                        mustRestartSong = true;
-                    }
+                    serialDebug(!playing ? "PAUSE\n" : "UNPAUSE\n");
+                    digitalWrite(PIN_LED, LOW);
+                }
+                if (midiNote == pitchE1) {
+                    nextBigTick = true;
+                    serialDebug("RESTART\n");
+                    mustRestartSong = true;
                 }
             }
         } while (rx.header != 0);
